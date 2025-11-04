@@ -1,0 +1,12 @@
+patient_id,age,stage,treatment_type
+P001,62,2,chemo
+P002,55,3,radio
+P003,49,2,surgery
+P004,71,3,chemo
+P005,66,1,surgery
+P006,58,2,chemo
+P007,63,2,radio
+P008,52,1,surgery
+P009,69,3,chemo
+P010,60,2,radio
+

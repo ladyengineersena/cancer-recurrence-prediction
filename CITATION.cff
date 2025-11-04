@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: "Cancer Recurrence Prediction (Survival Modeling)"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "Your Team"
+    affiliation: ""
+license: MIT
+repository-code: "https://github.com/ladyengineersena/cancer-recurrence-prediction"
+version: "0.1.0"
+date-released: "2025-11-04"
+

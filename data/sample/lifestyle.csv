@@ -1,0 +1,12 @@
+patient_id,smoking_status,activity_minutes_per_day,bmi
+P001,former,25,28.3
+P002,current,10,31.1
+P003,never,40,24.8
+P004,current,5,29.6
+P005,never,50,23.3
+P006,former,20,27.4
+P007,current,15,30.2
+P008,never,55,22.9
+P009,former,12,28.7
+P010,never,35,26.1
+
