@@ -3,11 +3,21 @@ from pathlib import Path
 
 import numpy as np
 from lifelines.utils import concordance_index
-from sksurv.metrics import brier_score, cumulative_dynamic_auc
 
 from .data_pipeline import DataConfig, load_and_prepare
 from .models import load_model, predict_risk_cox, predict_risk_rsf, predict_risk_deepsurv
 from .utils import save_json
+
+# Optional sksurv for advanced metrics
+try:
+    from sksurv.metrics import brier_score, cumulative_dynamic_auc
+    from sksurv.util import Surv
+    SKSURV_AVAILABLE = True
+except ImportError:
+    SKSURV_AVAILABLE = False
+    brier_score = None
+    cumulative_dynamic_auc = None
+    Surv = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,25 +42,33 @@ def main() -> None:
     else:
         risk_test = predict_risk_deepsurv(artifacts.model, ds.x_test)
 
-    # Global concordance index
+    # Global concordance index (always available)
     cindex = float(concordance_index(ds.durations_test, -risk_test, ds.events_test))
-
-    # Time-dependent AUC and Brier score using training as reference
-    from sksurv.util import Surv
-
-    y_train = Surv.from_arrays(event=ds.events_train.astype(bool), time=ds.durations_train.astype(float))
-    y_test = Surv.from_arrays(event=ds.events_test.astype(bool), time=ds.durations_test.astype(float))
-
-    times = np.array(args.eval_times)
-    aucs, _, _ = cumulative_dynamic_auc(y_train, y_test, -risk_test, times)
-    _, brier = brier_score(y_train, y_test, np.tile(-risk_test, (times.size, 1)).T, times)
 
     metrics = {
         "c_index": cindex,
         "times": args.eval_times,
-        "time_dependent_auc": [float(x) for x in aucs],
-        "brier_score": [float(x) for x in brier],
     }
+
+    # Time-dependent AUC and Brier score (optional, requires scikit-survival)
+    if SKSURV_AVAILABLE:
+        y_train = Surv.from_arrays(event=ds.events_train.astype(bool), time=ds.durations_train.astype(float))
+        y_test = Surv.from_arrays(event=ds.events_test.astype(bool), time=ds.durations_test.astype(float))
+
+        times = np.array(args.eval_times)
+        try:
+            aucs, _, _ = cumulative_dynamic_auc(y_train, y_test, -risk_test, times)
+            _, brier = brier_score(y_train, y_test, np.tile(-risk_test, (times.size, 1)).T, times)
+            metrics["time_dependent_auc"] = [float(x) for x in aucs]
+            metrics["brier_score"] = [float(x) for x in brier]
+        except Exception as e:
+            print(f"Warning: Could not compute time-dependent metrics: {e}")
+            metrics["time_dependent_auc"] = None
+            metrics["brier_score"] = None
+    else:
+        metrics["time_dependent_auc"] = None
+        metrics["brier_score"] = None
+        metrics["note"] = "Install scikit-survival for time-dependent AUC and Brier score"
 
     # Load risk threshold if available to compute warning rate
     cfg_path = Path(args.model_path).with_name("config.json")
@@ -63,8 +81,9 @@ def main() -> None:
         metrics["warning_rate"] = warn_rate
 
     save_json(metrics, args.report_path)
+    print(f"Evaluation complete. Metrics saved to {args.report_path}")
+    print(f"C-index: {cindex:.3f}")
 
 
 if __name__ == "__main__":
     main()
-

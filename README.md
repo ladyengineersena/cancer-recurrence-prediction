@@ -44,13 +44,19 @@ python -m venv .venv
 . .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Train (Cox)
+# Train (Cox) - requires lifelines
 python -m src.train --data_dir data/sample --model_type cox --output_dir outputs/cox_sample
 
 # Evaluate
 python -m src.evaluate --data_dir data/sample --model_type cox \
   --model_path outputs/cox_sample/model.joblib --report_path outputs/cox_sample/metrics.json
 ```
+
+**Note:** Some models require optional dependencies:
+- **Cox model**: Requires `lifelines` (included in requirements.txt)
+- **RSF model**: Requires `scikit-survival` (optional, install separately)
+- **DeepSurv model**: Requires `torch` (included in requirements.txt)
+- **Advanced metrics**: Requires `scikit-survival` for time-dependent AUC and Brier score
 
 ## Docker
 

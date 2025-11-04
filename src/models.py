@@ -6,14 +6,36 @@ from typing import Literal, Optional
 
 import joblib
 import numpy as np
-from lifelines import CoxPHFitter
-from sksurv.ensemble import RandomSurvivalForest
-from sksurv.util import Surv
+
+# Optional dependencies - import with error handling
+try:
+    from lifelines import CoxPHFitter
+    LIFELINES_AVAILABLE = True
+except ImportError:
+    LIFELINES_AVAILABLE = False
+    CoxPHFitter = None
+
+try:
+    from sksurv.ensemble import RandomSurvivalForest
+    from sksurv.util import Surv
+    SKSURV_AVAILABLE = True
+except ImportError:
+    SKSURV_AVAILABLE = False
+    RandomSurvivalForest = None
+    Surv = None
 
 # Optional DeepSurv
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
+try:
+    import torch
+    import torch.nn as nn
+    from torch.utils.data import DataLoader, TensorDataset
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    nn = None
+    DataLoader = None
+    TensorDataset = None
 
 
 ModelType = Literal["cox", "rsf", "deepsurv"]
@@ -26,16 +48,21 @@ class TrainArtifacts:
 
 
 def _to_structured_surv(durations: np.ndarray, events: np.ndarray):
+    if not SKSURV_AVAILABLE:
+        raise ImportError("scikit-survival is required. Install with: pip install scikit-survival")
     return Surv.from_arrays(event=events.astype(bool), time=durations.astype(float))
 
 
-def train_cox(x_train: np.ndarray, durations: np.ndarray, events: np.ndarray) -> CoxPHFitter:
+def train_cox(x_train: np.ndarray, durations: np.ndarray, events: np.ndarray, penalizer: float = 0.1) -> CoxPHFitter:
+    if not LIFELINES_AVAILABLE:
+        raise ImportError("lifelines is required for Cox model. Install with: pip install lifelines")
     import pandas as pd
 
     df = pd.DataFrame(x_train, columns=[f"f_{i}" for i in range(x_train.shape[1])])
     df["duration"] = durations
     df["event"] = events
-    cph = CoxPHFitter()
+    # Use penalizer for small datasets or high-dimensional features
+    cph = CoxPHFitter(penalizer=penalizer)
     cph.fit(df, duration_col="duration", event_col="event")
     return cph
 
@@ -49,6 +76,8 @@ def predict_risk_cox(model: CoxPHFitter, x: np.ndarray) -> np.ndarray:
 
 
 def train_rsf(x_train: np.ndarray, durations: np.ndarray, events: np.ndarray) -> RandomSurvivalForest:
+    if not SKSURV_AVAILABLE:
+        raise ImportError("scikit-survival is required for RSF model. Install with: pip install scikit-survival")
     y = _to_structured_surv(durations, events)
     rsf = RandomSurvivalForest(n_estimators=200, min_samples_split=10, min_samples_leaf=5, n_jobs=-1, random_state=42)
     rsf.fit(x_train, y)
@@ -65,6 +94,8 @@ def predict_risk_rsf(model: RandomSurvivalForest, x: np.ndarray) -> np.ndarray:
 
 class DeepSurvNet(nn.Module):
     def __init__(self, in_features: int, hidden: int = 128, dropout: float = 0.1):
+        if not TORCH_AVAILABLE:
+            raise ImportError("PyTorch is required for DeepSurv model. Install with: pip install torch")
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(in_features, hidden),
@@ -99,6 +130,8 @@ def train_deepsurv(
     batch_size: int = 64,
     lr: float = 1e-3,
 ) -> DeepSurvNet:
+    if not TORCH_AVAILABLE:
+        raise ImportError("PyTorch is required for DeepSurv model. Install with: pip install torch")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = DeepSurvNet(in_features=x_train.shape[1]).to(device)
     optim = torch.optim.Adam(model.parameters(), lr=lr)
@@ -136,4 +169,3 @@ def save_model(artifacts: TrainArtifacts, path: str | Path) -> None:
 
 def load_model(path: str | Path) -> TrainArtifacts:
     return joblib.load(path)
-
